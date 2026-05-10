@@ -31,14 +31,19 @@ fi
 log_info "openclaw CLI 检查通过"
 
 # ===== 检测 main agent sessions.json =====
-MAIN_SESSIONS="/root/.openclaw/agents/main/sessions/sessions.json"
-if [ ! -f "$MAIN_SESSIONS" ]; then
-    log_error "未找到 main agent sessions.json: $MAIN_SESSIONS"
-    exit 1
+SESSION_KEY=""
+if command -v openclaw >/dev/null 2>&1; then
+    SESSION_KEY=$(openclaw sessions --all-agents 2>/dev/null | awk '/agent:main:lightclawbot:direct:/{print $1; exit}')
 fi
 
-# ===== 获取 lightclawbot direct session key =====
-SESSION_KEY=$(jq -r 'to_entries[] | select(.key | startswith("agent:main:lightclawbot:direct:")) | .key' "$MAIN_SESSIONS" 2>/dev/null | head -1)
+if [ -z "$SESSION_KEY" ]; then
+    MAIN_SESSIONS="/root/.openclaw/agents/main/sessions/sessions.json"
+    if [ ! -f "$MAIN_SESSIONS" ]; then
+        log_error "未找到 main agent sessions.json: $MAIN_SESSIONS"
+        exit 1
+    fi
+    SESSION_KEY=$(jq -r 'to_entries[] | select(.key | startswith("agent:main:lightclawbot:direct:")) | .key' "$MAIN_SESSIONS" 2>/dev/null | head -1)
+fi
 
 if [ -z "$SESSION_KEY" ]; then
     log_error "未找到 lightclawbot direct session，无法自动配置"

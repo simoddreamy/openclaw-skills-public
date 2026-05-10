@@ -55,10 +55,16 @@ def get_active_session_id(agent_dir, agent_id=None):
     
     if agent_id == "main":
         # 获取 lightclawbot direct 会话
-        key = "agent:main:lightclawbot:direct:100018290076"
-        return sessions.get(key, {}).get('sessionId')
+        # 动态选择 lightclawbot direct 会话（优先最新匹配）
+        for key in sorted(sessions.keys(), reverse=True):
+            if key.startswith("agent:main:lightclawbot:direct:"):
+                return sessions.get(key, {}).get('sessionId')
+        return None
     else:
-        # 获取第一个（最新）的 session
+        # 获取第一个（最新）的 direct session
+        for key, value in sessions.items():
+            if ":direct:" in key:
+                return value.get('sessionId')
         for key, value in sessions.items():
             return value.get('sessionId')
 
@@ -134,6 +140,12 @@ def extract_messages(session_file, from_line, agent_id, session_id, db_path):
     for msg in messages:
         try:
             cursor.execute(
+                "SELECT 1 FROM messages WHERE agent_id=? AND session_id=? AND role=? AND content=? LIMIT 1",
+                (agent_id, session_id, msg['role'], msg['content'])
+            )
+            if cursor.fetchone():
+                continue
+            cursor.execute(
                 "INSERT INTO messages (agent_id, session_id, created_at, role, content) VALUES (?, ?, ?, ?, ?)",
                 (agent_id, session_id, timestamp, msg['role'], msg['content'])
             )
@@ -180,9 +192,10 @@ def process_normal_agent(agent_dir):
             
             conn = sqlite3.connect(str(db_path))
             cursor = conn.cursor()
+            current_lines = sum(1 for _ in open(session_file))
             cursor.execute(
                 "INSERT OR REPLACE INTO extraction_state (agent_id, session_id, last_line_processed, last_extracted_at, pending_cleanse) VALUES (?, ?, ?, ?, ?)",
-                (agent_id, current_session_id, 0, timestamp, 1)
+                (agent_id, current_session_id, current_lines, timestamp, 1)
             )
             conn.commit()
             conn.close()
