@@ -3,14 +3,14 @@
 # 功能：
 #   1. 先执行记忆同步（提取 Agent 会话到数据库）
 #   2. 再执行会话清理（运行 cleanup Python 脚本）
-# 位置：/root/.openclaw/workspace/scripts/memory-sync/memory_sync_combined.sh
+# 位置：/root/.openclaw/workspace/agent-756cc864/agent-756cc864/memory-sync/scripts/memory_sync_combined.sh
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MEMORY_SYNC_SCRIPT="$SCRIPT_DIR/memory_sync.py"
-CLEANUP_SCRIPT="/root/.openclaw/workspace/scripts/cleanup_cron_sessions_v5.py"
-STATE_FILE="/root/.openclaw/workspace/scripts/fixed_sessions/cleanup/state.json"
+CLEANUP_SCRIPT="/root/.openclaw/workspace/agent-756cc864/scripts/cleanup_cron_sessions_v5.py"
+STATE_FILE="/root/.openclaw/workspace/agent-756cc864/scripts/fixed_sessions/cleanup/state.json"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -50,7 +50,7 @@ if [ ! -f "$CLEANUP_SCRIPT" ]; then
 fi
 
 # 运行清理脚本
-cd /root/.openclaw/workspace
+cd /root/.openclaw/workspace/agent-756cc864
 python3 "$CLEANUP_SCRIPT" --max-cleanup 50
 cleanup_exit=$?
 

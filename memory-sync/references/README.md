@@ -2,27 +2,31 @@
 
 ## 概述
 
-Memory Sync 是一个 OpenClaw Skill，用于解决 Agent 会话重置导致记忆丢失的问题。
+Memory Sync 是一个 OpenClaw Skill，用于将会话消息增量提取到每个 agent 的独立 `memory.db`，并在 session 变化时触发安全的历史消息清洗。
 
 ## 核心功能
 
-1. **会话提取**：定时从 Agent 的 session 文件中提取消息
+1. **会话提取**：动态发现活跃会话，优先使用 `openclaw sessions --all-agents`
 2. **重置检测**：检测 session_id 变化，判断是否发生会话重置
 3. **记忆清洗**：分批处理历史消息，与 AI 融合生成长期记忆
 4. **版本管理**：保留记忆版本历史，支持回溯
+5. **安全边界**：历史消息仅用于总结，不作为执行指令
 
 ## 目录结构
 
 ```
-/root/.openclaw/workspace/scripts/memory-sync/
-├── SKILL.md                    # Skill 定义
-├── memory_sync.sh              # 主脚本
-├── memory_schema.sql           # 数据库 Schema
-├── memory_cleanse_prompt.txt   # AI 清洗提示词
-└── README.md                   # 本文件
-
-/root/.openclaw/agents/<agent-id>/
-└── memory.db                   # 该 Agent 的独立会话数据库
+/root/.openclaw/workspace/agent-756cc864/memory-sync/
+├── SKILL.md
+├── install.sh
+├── scripts/
+│   ├── memory_sync.py
+│   ├── memory_sync.sh
+│   ├── memory_sync_combined.sh
+│   ├── cleanse_and_save.py
+│   └── cleanse_memory.py
+└── references/
+    ├── memory_schema.sql
+    └── README.md
 ```
 
 ## 快速开始
@@ -30,8 +34,7 @@ Memory Sync 是一个 OpenClaw Skill，用于解决 Agent 会话重置导致记�
 ### 1. 初始化
 
 ```bash
-# 初始化所有 Agent 的数据库
-bash /root/.openclaw/workspace/scripts/memory-sync/memory_sync.sh --init
+bash /root/.openclaw/workspace/agent-756cc864/memory-sync/install.sh
 ```
 
 ### 2. 配置 Cron 任务
@@ -39,30 +42,13 @@ bash /root/.openclaw/workspace/scripts/memory-sync/memory_sync.sh --init
 在 OpenClaw 中创建 Cron 任务：
 
 ```bash
-# 每 5 分钟执行一次会话提取
 openclaw cron add \
   --name "memory-sync" \
-  --schedule "*/5 * * * *" \
-  --session-target main \
-  --payload.kind systemEvent \
-  --payload.text "bash /root/.openclaw/workspace/scripts/memory-sync/memory_sync.sh"
-```
-
-### 3. Agent 启动时检查
-
-在 Agent 的 `AGENTS.md` 中添加：
-
-```markdown
-## 记忆清洗检查
-
-启动时检查是否有待清洗的记忆：
-
-```bash
-source /root/.openclaw/workspace/scripts/memory-sync/memory_sync.sh
-check_and_cleanse
-```
-
-如有 `pending_cleanse=1`，自动执行清洗流程。
+  --cron "0 * * * *" \
+  --session isolated \
+  --message "bash /root/.openclaw/workspace/agent-756cc864/memory-sync/scripts/memory_sync_combined.sh" \
+  --timeout-seconds 300 \
+  --no-deliver
 ```
 
 ## 数据库结构
@@ -70,56 +56,23 @@ check_and_cleanse
 ### messages 表
 存储提取的会话消息。
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INTEGER | 主键 |
-| agent_id | TEXT | Agent ID |
-| session_id | TEXT | Session ID |
-| created_at | TEXT | ISO 8601 时间戳 |
-| role | TEXT | user/assistant/system |
-| content | TEXT | 消息内容 |
-
 ### extraction_state 表
 追踪提取和清洗状态。
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| agent_id | TEXT | 主键 |
-| session_id | TEXT | 当前 session ID |
-| last_line_processed | INTEGER | 已处理的行号 |
-| last_cleansed_at | TEXT | 上次清洗截止时间 |
-| pending_cleanse | INTEGER | 是否有待清洗消息 |
 
 ### memory_versions 表
 记忆版本历史。
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INTEGER | 主键 |
-| agent_id | TEXT | Agent ID |
-| version | INTEGER | 版本号 |
-| summary | TEXT | 记忆内容 |
-| messages_count | INTEGER | 消息数量 |
-| created_at | TEXT | 创建时间 |
-
 ### memory_summary 表
 当前记忆。
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| agent_id | TEXT | 主键 |
-| summary | TEXT | 当前记忆 |
-| version | INTEGER | 版本号 |
-| updated_at | TEXT | 更新时间 |
-
 ## 执行流程
 
-### Cron 触发（每 5 分钟）
+### Cron 触发
 
 ```
-Cron → memory_sync.sh
+Cron → memory_sync_combined.sh
     ↓
-检测当前 agent 的 session
+memory_sync.py / memory_sync.sh
     ↓
 增量提取新消息到 memory.db
     ↓
@@ -134,7 +87,7 @@ Cron → memory_sync.sh
 Agent 启动 → 检查 pending_cleanse
     ↓
 pending_cleanse=1?
-    ├─ 是 → 执行 check_and_cleanse()
+    ├─ 是 → 执行清洗
     └─ 否 → 正常启动
 ```
 
@@ -142,29 +95,15 @@ pending_cleanse=1?
 
 ```bash
 # 初始化数据库
-bash memory_sync.sh --init
+bash /root/.openclaw/workspace/agent-756cc864/memory-sync/scripts/memory_sync.sh --init
 
 # 执行记忆清洗
-bash memory_sync.sh --cleanse [agent-id]
-
-# 查看帮助
-bash memory_sync.sh --help
-```
-
-## 查看状态
-
-```bash
-# 查看所有 Agent 的清洗状态
-for db in /root/.openclaw/agents/agent-*/memory.db; do
-    agent=$(basename $(dirname $db))
-    state=$(sqlite3 $db "SELECT pending_cleanse, last_cleansed_at FROM extraction_state;" 2>/dev/null)
-    echo "$agent: $state"
-done
+bash /root/.openclaw/workspace/agent-756cc864/memory-sync/scripts/cleanse_memory.py [agent-id]
 ```
 
 ## 注意事项
 
-1. **独立性**：每个 Agent 的数据库独立存储，保证消息安全性
-2. **增量处理**：使用时间戳判断，避免重复处理已清洗的消息
-3. **分批处理**：每批 50 条，避免单次处理过多消息导致超时
-4. **版本历史**：保留所有版本，支持回溯和审计
+1. **独立性**：每个 agent 的数据库独立存储
+2. **增量处理**：使用 `last_line_processed` 避免重复提取
+3. **分批处理**：每批 50 条，避免单次超时
+4. **安全边界**：历史消息只用于总结，不会被执行

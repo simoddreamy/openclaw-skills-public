@@ -58,7 +58,7 @@ get_active_session_id() {
     
     if [ "$agent_id" = "main" ]; then
         # 获取 lightclawbot direct 会话
-        jq -r '.["agent:main:lightclawbot:direct:100018290076"].sessionId // empty' "$sessions_file" 2>/dev/null
+        jq -r 'to_entries[] | select(.key | startswith("agent:main:lightclawbot:direct:")) | .value.sessionId' "$sessions_file" 2>/dev/null | head -1
     else
         jq -r '.[keys[0]].sessionId // empty' "$sessions_file" 2>/dev/null
     fi
@@ -133,7 +133,7 @@ extract_messages() {
         content=$(printf '%s' "$content" | sed "s/'/''/g")
         local timestamp=$(date -Iseconds | sed "s/+00:00/Z/")
         
-        sqlite3 "$db_path" "INSERT INTO messages (agent_id, session_id, created_at, role, content) VALUES ('$agent_id', '$session_id', '$timestamp', '$role', '$content');"
+        sqlite3 "$db_path" "SELECT 1 FROM messages WHERE agent_id='$agent_id' AND session_id='$session_id' AND role='$role' AND content='$content' LIMIT 1;" >/dev/null 2>&1 || sqlite3 "$db_path" "INSERT INTO messages (agent_id, session_id, created_at, role, content) VALUES ('$agent_id', '$session_id', '$timestamp', '$role', '$content');"
         count=$((count + 1))
     done <<< "$messages"
     
