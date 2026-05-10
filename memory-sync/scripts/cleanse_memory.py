@@ -9,7 +9,7 @@ import sys
 import re
 from datetime import datetime, timezone
 
-AGENT_ID = "agent-0c143551"
+AGENT_ID = "agent-756cc864"
 DB_PATH = f"/root/.openclaw/agents/{AGENT_ID}/memory.db"
 
 def get_pending_messages(limit=50):

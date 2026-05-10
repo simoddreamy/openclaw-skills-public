@@ -3,7 +3,7 @@
 # 功能：自动检测环境，创建定时任务
 # 依赖：openclaw CLI
 #
-# 使用方式：bash /root/.openclaw/workspace/skills/memory-sync/install.sh
+# 使用方式：bash /root/.openclaw/workspace/agent-756cc864/memory-sync/install.sh
 
 set -e
 

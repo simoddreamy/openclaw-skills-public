@@ -207,7 +207,7 @@ process_normal_agent() {
 # ===== 处理 main Agent =====
 # 只处理两个指定的 session：
 #   1. agent:main:main（基础主会话）
-#   2. agent:main:lightclawbot:direct:100018290076（lightclawbot 私聊）
+#   2. agent:main:lightclawbot:direct:*（lightclawbot 私聊）
 process_main_agent() {
     local agent_dir="$1"
     local agent_id="main"
@@ -223,7 +223,7 @@ process_main_agent() {
     # 硬编码 key
     local -a STATIC_KEYS=(
         "agent:main:main"
-        "agent:main:lightclawbot:direct:100018290076"
+        "agent:main:lightclawbot:direct:*"
     )
 
     # 通配符匹配：所有 agent:main:openclaw-weixin:* 开头的 key
@@ -331,7 +331,7 @@ case "${1:-}" in
         done
         ;;
     --export)
-        export_pending_messages "${2:-agent-0c143551}"
+        export_pending_messages "${2:-agent-756cc864}"
         ;;
     --help)
         echo "用法: $0 [--init|--export|--help]"

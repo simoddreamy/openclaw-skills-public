@@ -3,7 +3,7 @@
 # 功能：
 #   1. 先执行记忆同步（提取 Agent 会话到数据库）
 #   2. 再执行会话清理（运行 cleanup Python 脚本）
-# 位置：/root/.openclaw/workspace/agent-756cc864/agent-756cc864/memory-sync/scripts/memory_sync_combined.sh
+# 位置：/root/.openclaw/workspace/agent-756cc864/memory-sync/scripts/memory_sync_combined.sh
 
 set -e
 
